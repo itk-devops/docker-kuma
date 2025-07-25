@@ -1,0 +1,42 @@
+networks:
+  frontend:
+    external: true
+  app:
+    driver: bridge
+    internal: false
+
+services:
+  nginx:
+    image: nginxinc/nginx-unprivileged:alpine
+    restart: unless-stopped
+    networks:
+      - app
+      - frontend
+    depends_on:
+      - kuma
+    environment:
+      NGINX_WEB_ROOT: /app/web
+      NGINX_PORT: 8080
+      NGINX_MAX_BODY_SIZE: 5M
+    volumes:
+      - ./.docker/templates/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - .:/app
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.rule=Host(`${COMPOSE_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.entrypoints=web"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${COMPOSE_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure"
+
+  kuma:
+    image: louislam/uptime-kuma:${KUMA_VERSION:-1}
+    restart: unless-stopped
+    networks:
+      - app
+    expose:
+      - "3001"
+    volumes:
+      - ./.docker/data:/app/data
